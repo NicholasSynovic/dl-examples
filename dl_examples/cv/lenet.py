@@ -8,12 +8,25 @@
 # subsampling was choosen based off of the Paper's With Code implementation
 # (https://github.com/Elman295/Paper_with_code/blob/main/LeNet_5_Pytorch.ipynb)
 
+from argparse import Namespace
 from pathlib import Path
 
+import torch
 from flax import linen
 from flax.linen import Conv, Dense, max_pool, relu
 from jax import Array
+from jax import numpy as jnp
+from jax.random import KeyArray, PRNGKey
+from torch import Tensor
+from torch.utils.data import DataLoader
 from torchvision.datasets import MNIST
+from torchvision.transforms import Compose, Lambda, ToTensor
+
+from dl_examples.args.lenet_args import getArgs
+
+seed: int = 42
+rngKey: KeyArray = PRNGKey(seed=seed)
+torch.manual_seed(seed=seed)
 
 
 class LeNet(linen.Module):
@@ -40,10 +53,10 @@ class LeNet(linen.Module):
 
     def __call__(self, x: Array) -> Array:
         def convBlock(conv: Conv, data: Array) -> Array:
-            data = conv(inputs=data)
-            data = relu(inputs=data)
+            data = conv(data)
+            data = relu(data)
             data = max_pool(
-                inputs=data,
+                data,
                 window_shape=(2, 2),
                 strides=(2, 2),
                 padding="VALID",
@@ -51,7 +64,7 @@ class LeNet(linen.Module):
             return data
 
         def denseBlock(dense: Dense, data: Array) -> Array:
-            data = dense(inputs=data)
+            data = dense(data)
             data = relu(data)
             return data
 
@@ -68,22 +81,58 @@ def getMNIST(rootDirectory: Path = Path(".")) -> None:
     MNIST(root=rootDirectory.__str__(), download=True)
 
 
-def loadMNIST_train(rootDirectory: Path = Path(".")) -> MNIST:
+def loadMNIST(
+    tranformation: Compose,
+    rootDirectory: Path = Path("."),
+    train: bool = True,
+) -> MNIST:
     mnist: MNIST = MNIST(
         root=rootDirectory.__str__(),
-        train=True,
+        train=train,
         download=False,
+        transform=tranformation,
     )
     return mnist
 
 
 def main() -> None:
+    args: Namespace = getArgs()
+    datasetDirectory: Path = args.dataset[0]
+
+    batchSize: int = args.batch_size[0]
+    inputShape: tuple[int, int, int, int] = (
+        batchSize,
+        28,
+        28,
+        1,
+    )  # (batch_size, height, width, channels)
+
+    binaryTransform: Compose = Compose(
+        transforms=[ToTensor(), Lambda(lambda x: x > 0.5)]
+    )
+
     model: LeNet = LeNet()
 
-    getMNIST()
-    mnistTrain: MNIST = loadMNIST_train()
+    getMNIST(rootDirectory=datasetDirectory)
 
-    print(mnistTrain)
+    mnistTrain: MNIST = loadMNIST(
+        tranformation=binaryTransform,
+        rootDirectory=datasetDirectory,
+    )
+    mnistTest: MNIST = loadMNIST(
+        tranformation=binaryTransform,
+        rootDirectory=datasetDirectory,
+        train=False,
+    )
+
+    trainingDataLoader: DataLoader = DataLoader(
+        dataset=mnistTrain, batch_size=32, shuffle=True
+    )
+
+    data: Array = jnp.ones(inputShape)
+
+    # params = model.init(rngs=rngKey, x=data)
+    print(model.tabulate(rngs=rngKey, x=data))
 
 
 if __name__ == "__main__":
