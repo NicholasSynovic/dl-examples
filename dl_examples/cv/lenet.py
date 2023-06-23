@@ -8,15 +8,16 @@
 # subsampling was choosen based off of the Paper's With Code implementation
 # (https://github.com/Elman295/Paper_with_code/blob/main/LeNet_5_Pytorch.ipynb)
 
+from pathlib import Path
+
 from flax import linen
 from flax.linen import Conv, Dense, max_pool, relu
 from jax import Array
+from torchvision.datasets import MNIST
 
 
 class LeNet(linen.Module):
     def setup(self) -> None:
-        # Describe layers here
-
         kernelSize: tuple[int, int] = (5, 5)
         strideSize: tuple[int, int] = (1, 1)
         paddingType: str = "VALID"
@@ -63,10 +64,26 @@ class LeNet(linen.Module):
         return x
 
 
+def getMNIST(rootDirectory: Path = Path(".")) -> None:
+    MNIST(root=rootDirectory.__str__(), download=True)
+
+
+def loadMNIST_train(rootDirectory: Path = Path(".")) -> MNIST:
+    mnist: MNIST = MNIST(
+        root=rootDirectory.__str__(),
+        train=True,
+        download=False,
+    )
+    return mnist
+
+
 def main() -> None:
     model: LeNet = LeNet()
 
-    print(model)
+    getMNIST()
+    mnistTrain: MNIST = loadMNIST_train()
+
+    print(mnistTrain)
 
 
 if __name__ == "__main__":

@@ -12,9 +12,6 @@ jax = "^0.4.13"
 flax = "^0.6.11"
 jaxlib = "^0.4.13"
 optax = "^0.1.5"
-torch = "^2.0.1"
-torchvision = "^0.15.2"
-torchaudio = "^2.0.2"
 tensorflow = "^2.12.0"
 
 
