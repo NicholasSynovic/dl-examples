@@ -28,5 +28,13 @@ def getArgs() -> Namespace:
         required=True,
         help="Path to store/access MNIST dataset",
     )
+    parser.add_argument(
+        "-b",
+        "--batch-size",
+        nargs=1,
+        type=int,
+        required=True,
+        help="Batch size to train the model",
+    )
 
     return parser.parse_args()
