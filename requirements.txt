@@ -1,3 +1,7 @@
+flax
+jax
+optax
+tensorflow
 torch
 torchaudio
 torchvision
