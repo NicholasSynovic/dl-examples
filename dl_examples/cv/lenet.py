@@ -18,7 +18,7 @@ from jax import Array
 from jax import numpy as jnp
 from jax.random import KeyArray, PRNGKey
 from torch import Tensor, nn
-from torch.nn import Conv2d, MaxPool2d
+from torch.nn import Conv2d, Linear, MaxPool2d, functional
 from torch.utils.data import DataLoader
 from torchvision.datasets import MNIST
 from torchvision.transforms import Compose, Lambda, ToTensor
@@ -32,7 +32,7 @@ torch.manual_seed(seed=seed)
 
 class Common:
     def __init__(self, outputFeatueCount: int = 10) -> None:
-        self.jaxPadding: str = "VALID"
+        self.padding: str = "VALID"
 
         self.maxPool_windowShape: tuple[int, int] = (2, 2)
         self.maxPool_strideShape: tuple[int, int] = (2, 2)
@@ -59,13 +59,13 @@ class LeNet_Jax(linen.Module):
             features=self.common.conv1_features,
             kernel_size=self.common.conv_kernelShape,
             strides=self.common.conv_strideShape,
-            padding=self.common.jaxPadding,
+            padding=self.common.padding,
         )
         self.conv2: Conv = Conv(
             features=self.common.conv2_features,
             kernel_size=self.common.conv_kernelShape,
             strides=self.common.conv_strideShape,
-            padding=self.common.jaxPadding,
+            padding=self.common.padding,
         )
         self.dense1: Dense = Dense(features=self.common.dense1_features)
         self.dense2: Dense = Dense(features=self.common.dense2_features)
@@ -79,7 +79,7 @@ class LeNet_Jax(linen.Module):
                 data,
                 window_shape=self.common.maxPool_windowShape,
                 strides=self.common.maxPool_strideShape,
-                padding=self.common.jaxPadding,
+                padding=self.common.padding,
             )
             return data
 
@@ -102,6 +102,59 @@ class LeNet_PyTorch(nn.Module):
         super(LeNet_PyTorch, self).__init__()
 
         self.common: Common = Common()
+
+        self.conv1: Conv2d = Conv2d(
+            in_channels=1,
+            out_channels=self.common.conv1_features,
+            kernel_size=self.common.conv_kernelShape,
+            stride=self.common.conv_strideShape,
+            padding=self.common.padding,
+        )
+        self.maxPool1: MaxPool2d = MaxPool2d(
+            kernel_size=self.common.maxPool_windowShape,
+            stride=self.common.maxPool_strideShape,
+        )
+        self.conv2: Conv2d = Conv2d(
+            in_channels=self.common.conv1_features,
+            out_channels=self.common.conv2_features,
+            kernel_size=self.common.conv_kernelShape,
+            stride=self.common.conv_strideShape,
+            padding=self.common.padding,
+        )
+        self.maxPool2: MaxPool2d = MaxPool2d(
+            kernel_size=self.common.maxPool_windowShape,
+            stride=self.common.maxPool_strideShape,
+        )
+        self.dense1: Linear = Linear(
+            in_features=256,
+            out_features=self.common.dense1_features,
+        )
+        self.dense2: Linear = Linear(
+            in_features=self.common.dense1_features,
+            out_features=self.common.dense2_features,
+        )
+        self.dense3: Linear = Linear(
+            in_features=self.common.dense2_features,
+            out_features=self.common.dense3_features,
+        )
+
+    def forward(self, x: Tensor) -> None:
+        def convBlock(conv: Conv2d, maxPool: MaxPool2d, data: Tensor) -> Tensor:
+            data = conv(data)
+            data = functional.relu(input=data)
+            data = maxPool(data)
+            return data
+
+        def denseBlock(dense: Linear, data: Tensor) -> Tensor:
+            data = dense(data)
+            data = functional.relu(input=data)
+            return data
+
+        x = convBlock(conv=self.conv1, maxPool=self.maxPool1, data=x)
+        x = convBlock(conv=self.conv2, maxPool=self.maxPool2, data=x)
+        x = denseBlock(dense=self.dense1, data=x)
+        x = denseBlock(dense=self.dense2, data=x)
+        return self.dense3(x)
 
 
 def getMNIST(rootDirectory: Path = Path(".")) -> None:
