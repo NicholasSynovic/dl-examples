@@ -1,6 +1,7 @@
 from pathlib import Path
 from typing import List
 
+from torch.utils.data import DataLoader
 from torchvision import datasets
 from torchvision.transforms import Compose, Lambda, Normalize, ToTensor
 
@@ -18,3 +19,13 @@ class MNIST(datasets.MNIST):
         super(MNIST, self).__init__(
             root=directory.__str__(), train=train, transform=transformations
         )
+
+    def toDataLoader(
+        self, batchSize: int = 64, shuffleDataBetweenEpochs: bool = True
+    ) -> DataLoader:
+        dataloader: DataLoader = DataLoader(
+            dataset=self,
+            batch_size=batchSize,
+            shuffle=shuffleDataBetweenEpochs,
+        )
+        return dataloader
