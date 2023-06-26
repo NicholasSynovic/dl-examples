@@ -100,7 +100,12 @@ class LeNet_Jax(linen.Module):
 
 
 class LeNet_PyTorch(nn.Module):
-    def __init__(self) -> None:
+    def __init__(
+        self,
+        trainingDataLoader: DataLoader,
+        testingDataLoader: DataLoader,
+        validationDataLoader: DataLoader,
+    ) -> None:
         super(LeNet_PyTorch, self).__init__()
 
         self.common: Common = Common()
@@ -140,6 +145,10 @@ class LeNet_PyTorch(nn.Module):
             out_features=self.common.dense3_features,
         )
 
+        self.trainingDataLoader: DataLoader = trainingDataLoader
+        self.testingDataLoader: DataLoader = testingDataLoader
+        self.validationDataLoader: DataLoader = validationDataLoader
+
     def forward(self, x: Tensor) -> None:
         def convBlock(conv: Conv2d, maxPool: MaxPool2d, data: Tensor) -> Tensor:
             data = conv(data)
@@ -159,22 +168,17 @@ class LeNet_PyTorch(nn.Module):
         x = denseBlock(dense=self.dense2, data=x)
         return self.dense3(x)
 
+    def train(self) -> None:
+        lossFunction: CrossEntropyLoss = CrossEntropyLoss()
+        optimizer: Adam = Adam(params=self.parameters(), lr=1e-3)
 
-def trainPyTorch(
-    model: nn.Module, data: DataLoader, validationSizePercentage: float = 0.1
-) -> None:
-    lossFunction: CrossEntropyLoss = CrossEntropyLoss()
-    optimizer: Adam = Adam(params=model.parameters(), lr=1e-3)
+        for _, (x, y) in enumerate(self.trainingDataLoader):
+            yPrediction: Tensor = self(x)
+            loss: Tensor = lossFunction(yPrediction, y)
 
-    # trainingData, validationData =
-
-    for _, (x, y) in enumerate(data):
-        yPrediction: Tensor = model(x)
-        loss: Tensor = lossFunction(yPrediction, y)
-
-        optimizer.zero_grad()
-        loss.backward()
-        optimizer.step()
+            optimizer.zero_grad()
+            loss.backward()
+            optimizer.step()
 
 
 def main() -> None:
