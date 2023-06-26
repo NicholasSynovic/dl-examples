@@ -18,12 +18,14 @@ from jax import Array
 from jax import numpy as jnp
 from jax.random import KeyArray, PRNGKey
 from torch import Tensor, nn
-from torch.nn import Conv2d, Linear, MaxPool2d, functional
+from torch.nn import Conv2d, CrossEntropyLoss, Linear, MaxPool2d, functional
+from torch.optim import Adam
 from torch.utils.data import DataLoader
 from torchvision.datasets import MNIST
 from torchvision.transforms import Compose, Lambda, ToTensor
 
 from dl_examples.args.lenet_args import getArgs
+from dl_examples.datasetLoaders.mnist import MNIST
 
 seed: int = 42
 rngKey: KeyArray = PRNGKey(seed=seed)
@@ -126,7 +128,7 @@ class LeNet_PyTorch(nn.Module):
             stride=self.common.maxPool_strideShape,
         )
         self.dense1: Linear = Linear(
-            in_features=256,
+            in_features=16 * 4 * 4,
             out_features=self.common.dense1_features,
         )
         self.dense2: Linear = Linear(
@@ -152,49 +154,48 @@ class LeNet_PyTorch(nn.Module):
 
         x = convBlock(conv=self.conv1, maxPool=self.maxPool1, data=x)
         x = convBlock(conv=self.conv2, maxPool=self.maxPool2, data=x)
+        x = torch.flatten(input=x, start_dim=1)
         x = denseBlock(dense=self.dense1, data=x)
         x = denseBlock(dense=self.dense2, data=x)
         return self.dense3(x)
 
 
-def getMNIST(rootDirectory: Path = Path(".")) -> None:
-    MNIST(root=rootDirectory.__str__(), download=True)
+def trainPyTorch(
+    model: nn.Module, data: DataLoader, validationSizePercentage: float = 0.1
+) -> None:
+    lossFunction: CrossEntropyLoss = CrossEntropyLoss()
+    optimizer: Adam = Adam(params=model.parameters(), lr=1e-3)
 
+    # trainingData, validationData =
 
-def loadMNIST(
-    tranformation: Compose,
-    rootDirectory: Path = Path("."),
-    train: bool = True,
-) -> MNIST:
-    mnist: MNIST = MNIST(
-        root=rootDirectory.__str__(),
-        train=train,
-        download=False,
-        transform=tranformation,
-    )
-    return mnist
+    for _, (x, y) in enumerate(data):
+        yPrediction: Tensor = model(x)
+        loss: Tensor = lossFunction(yPrediction, y)
+
+        optimizer.zero_grad()
+        loss.backward()
+        optimizer.step()
 
 
 def main() -> None:
     args: Namespace = getArgs()
+
     datasetDirectory: Path = args.dataset[0]
 
-    batchSize: int = args.batch_size[0]
-    inputShape: tuple[int, int, int, int] = (
-        batchSize,
-        28,
-        28,
-        1,
-    )  # (batch_size, height, width, channels)
-
-    binaryTransform: Compose = Compose(
-        transforms=[ToTensor(), Lambda(lambda x: x > 0.5)]
+    mnistTraining: MNIST = MNIST(
+        directory=datasetDirectory, train=True, batchSize=args.batch_size[0]
     )
+    mnistTesting: MNIST = MNIST(directory=datasetDirectory, train=False)
+
+    mnistTraining_dataloader: DataLoader = mnistTraining.dataloader
+    mnistTesting_dataloader: DataLoader = mnistTesting.dataloader
+
+    mnistTraining.createTrainingValidationSplit()
 
     pytorchLeNet: LeNet_PyTorch = LeNet_PyTorch()
     jaxLeNet: LeNet_Jax = LeNet_Jax()
 
-    print(pytorchLeNet)
+    trainPyTorch(model=pytorchLeNet, data=mnistTraining_dataloader)
 
 
 if __name__ == "__main__":
