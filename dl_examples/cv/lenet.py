@@ -108,7 +108,7 @@ class LeNet_PyTorch(nn.Module):
             out_channels=self.common.conv1_features,
             kernel_size=self.common.conv_kernelShape,
             stride=self.common.conv_strideShape,
-            padding=self.common.padding,
+            padding=self.common.padding.lower(),
         )
         self.maxPool1: MaxPool2d = MaxPool2d(
             kernel_size=self.common.maxPool_windowShape,
@@ -119,7 +119,7 @@ class LeNet_PyTorch(nn.Module):
             out_channels=self.common.conv2_features,
             kernel_size=self.common.conv_kernelShape,
             stride=self.common.conv_strideShape,
-            padding=self.common.padding,
+            padding=self.common.padding.lower(),
         )
         self.maxPool2: MaxPool2d = MaxPool2d(
             kernel_size=self.common.maxPool_windowShape,
@@ -191,28 +191,10 @@ def main() -> None:
         transforms=[ToTensor(), Lambda(lambda x: x > 0.5)]
     )
 
-    model: LeNet = LeNet()
+    pytorchLeNet: LeNet_PyTorch = LeNet_PyTorch()
+    jaxLeNet: LeNet_Jax = LeNet_Jax()
 
-    getMNIST(rootDirectory=datasetDirectory)
-
-    mnistTrain: MNIST = loadMNIST(
-        tranformation=binaryTransform,
-        rootDirectory=datasetDirectory,
-    )
-    mnistTest: MNIST = loadMNIST(
-        tranformation=binaryTransform,
-        rootDirectory=datasetDirectory,
-        train=False,
-    )
-
-    trainingDataLoader: DataLoader = DataLoader(
-        dataset=mnistTrain, batch_size=32, shuffle=True
-    )
-
-    data: Array = jnp.ones(inputShape)
-
-    # params = model.init(rngs=rngKey, x=data)
-    print(model.tabulate(rngs=rngKey, x=data))
+    print(pytorchLeNet)
 
 
 if __name__ == "__main__":
