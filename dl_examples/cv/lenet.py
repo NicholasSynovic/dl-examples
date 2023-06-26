@@ -17,7 +17,8 @@ from flax.linen import Conv, Dense, max_pool, relu
 from jax import Array
 from jax import numpy as jnp
 from jax.random import KeyArray, PRNGKey
-from torch import Tensor
+from torch import Tensor, nn
+from torch.nn import Conv2d, MaxPool2d
 from torch.utils.data import DataLoader
 from torchvision.datasets import MNIST
 from torchvision.transforms import Compose, Lambda, ToTensor
@@ -29,27 +30,46 @@ rngKey: KeyArray = PRNGKey(seed=seed)
 torch.manual_seed(seed=seed)
 
 
-class LeNet(linen.Module):
-    def setup(self) -> None:
-        kernelSize: tuple[int, int] = (5, 5)
-        strideSize: tuple[int, int] = (1, 1)
-        paddingType: str = "VALID"
+class Common:
+    def __init__(self, outputFeatueCount: int = 10) -> None:
+        self.jaxPadding: str = "VALID"
 
+        self.maxPool_windowShape: tuple[int, int] = (2, 2)
+        self.maxPool_strideShape: tuple[int, int] = (2, 2)
+
+        self.conv_kernelShape: tuple[int, int] = (5, 5)
+        self.conv_strideShape: tuple[int, int] = (1, 1)
+
+        self.conv1_features: int = 6
+        self.conv2_features: int = 16
+
+        self.dense1_features: int = 120
+        self.dense2_features: int = 84
+        self.dense3_features: int = outputFeatueCount
+
+
+class LeNet_Jax(linen.Module):
+    def __init__(self) -> None:
+        super(LeNet_Jax, self).__init__()
+
+        self.common: Common = Common()
+
+    def setup(self) -> None:
         self.conv1: Conv = Conv(
-            features=6,
-            kernel_size=kernelSize,
-            strides=strideSize,
-            padding=paddingType,
+            features=self.common.conv1_features,
+            kernel_size=self.common.conv_kernelShape,
+            strides=self.common.conv_strideShape,
+            padding=self.common.jaxPadding,
         )
         self.conv2: Conv = Conv(
-            features=16,
-            kernel_size=kernelSize,
-            strides=strideSize,
-            padding=paddingType,
+            features=self.common.conv2_features,
+            kernel_size=self.common.conv_kernelShape,
+            strides=self.common.conv_strideShape,
+            padding=self.common.jaxPadding,
         )
-        self.dense1: Dense = Dense(features=120)
-        self.dense2: Dense = Dense(features=84)
-        self.dense3: Dense = Dense(features=10)
+        self.dense1: Dense = Dense(features=self.common.dense1_features)
+        self.dense2: Dense = Dense(features=self.common.dense2_features)
+        self.dense3: Dense = Dense(features=self.common.dense3_features)
 
     def __call__(self, x: Array) -> Array:
         def convBlock(conv: Conv, data: Array) -> Array:
@@ -57,9 +77,9 @@ class LeNet(linen.Module):
             data = relu(data)
             data = max_pool(
                 data,
-                window_shape=(2, 2),
-                strides=(2, 2),
-                padding="VALID",
+                window_shape=self.common.maxPool_windowShape,
+                strides=self.common.maxPool_strideShape,
+                padding=self.common.jaxPadding,
             )
             return data
 
@@ -75,6 +95,13 @@ class LeNet(linen.Module):
         x = self.dense3(inputs=x)
 
         return x
+
+
+class LeNet_PyTorch(nn.Module):
+    def __init__(self) -> None:
+        super(LeNet_PyTorch, self).__init__()
+
+        self.common: Common = Common()
 
 
 def getMNIST(rootDirectory: Path = Path(".")) -> None:
