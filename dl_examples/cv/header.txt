@@ -1,0 +1,8 @@
+"""
+Model Name: {MODEL_NAME}
+Model Author(s): {MODEL_AUTHORS}
+Model Source Paper Title: {PAPER_TITLE}
+Model Source Paper DOI: {PAPER_DOI}
+
+Model Implementation Author: Nicholas M. Synovic
+"""
