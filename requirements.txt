@@ -6,4 +6,5 @@ tensorboard
 tensorflow
 torch
 torchaudio
+torchmetrics
 torchvision
