@@ -36,5 +36,13 @@ def getArgs() -> Namespace:
         required=True,
         help="Batch size to train the model",
     )
+    parser.add_argument(
+        "-t",
+        "--tensorboard",
+        nargs=1,
+        type=int,
+        required=True,
+        help="Path to store TensorBoard logs",
+    )
 
     return parser.parse_args()

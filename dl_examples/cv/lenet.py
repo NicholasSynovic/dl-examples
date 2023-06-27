@@ -269,7 +269,7 @@ def main() -> None:
     testingDataLoader = mnistTesting.dataloader
 
     model: LeNet_PyTorch = LeNet_PyTorch(
-        tensorboardPath=Path("./run"),
+        tensorboardPath=args.tensorboard[0],
         trainingDataLoader=trainingDataLoader,
         testingDataLoader=testingDataLoader,
         validationDataLoader=validationDataLoader,
