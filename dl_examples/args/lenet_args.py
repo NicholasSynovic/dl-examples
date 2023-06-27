@@ -40,9 +40,17 @@ def getArgs() -> Namespace:
         "-t",
         "--tensorboard",
         nargs=1,
-        type=int,
+        type=Path,
         required=True,
         help="Path to store TensorBoard logs",
+    )
+    parser.add_argument(
+        "-o",
+        "--output",
+        nargs=1,
+        type=Path,
+        required=True,
+        help="Path to save the best models with respect to training loss and accuracy",
     )
 
     return parser.parse_args()

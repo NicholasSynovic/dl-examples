@@ -163,3 +163,5 @@ dl_examples/logs*
 dl_examples/models/*
 tfjsENV/*
 datasets/*
+tensorboard/*
+models/*
