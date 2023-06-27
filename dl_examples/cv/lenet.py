@@ -12,10 +12,6 @@ from argparse import Namespace
 from pathlib import Path
 
 import torch
-from flax import linen
-from flax.linen import Conv, Dense, max_pool, relu
-from jax import Array
-from jax.random import KeyArray, PRNGKey
 from progress.bar import Bar
 from torch import Tensor, nn
 from torch.nn import Conv2d, CrossEntropyLoss, Linear, MaxPool2d, functional
@@ -28,7 +24,6 @@ from dl_examples.args.lenet_args import getArgs
 from dl_examples.datasetLoaders.mnist import MNIST
 
 seed: int = 42
-rngKey: KeyArray = PRNGKey(seed=seed)
 torch.manual_seed(seed=seed)
 
 
@@ -50,56 +45,7 @@ class Common:
         self.dense3_features: int = outputFeatueCount
 
 
-class LeNet_Jax(linen.Module):
-    def __init__(self) -> None:
-        super(LeNet_Jax, self).__init__()
-
-        self.common: Common = Common()
-
-    def setup(self) -> None:
-        self.conv1: Conv = Conv(
-            features=self.common.conv1_features,
-            kernel_size=self.common.conv_kernelShape,
-            strides=self.common.conv_strideShape,
-            padding=self.common.padding,
-        )
-        self.conv2: Conv = Conv(
-            features=self.common.conv2_features,
-            kernel_size=self.common.conv_kernelShape,
-            strides=self.common.conv_strideShape,
-            padding=self.common.padding,
-        )
-        self.dense1: Dense = Dense(features=self.common.dense1_features)
-        self.dense2: Dense = Dense(features=self.common.dense2_features)
-        self.dense3: Dense = Dense(features=self.common.dense3_features)
-
-    def __call__(self, x: Array) -> Array:
-        def convBlock(conv: Conv, data: Array) -> Array:
-            data = conv(data)
-            data = relu(data)
-            data = max_pool(
-                data,
-                window_shape=self.common.maxPool_windowShape,
-                strides=self.common.maxPool_strideShape,
-                padding=self.common.padding,
-            )
-            return data
-
-        def denseBlock(dense: Dense, data: Array) -> Array:
-            data = dense(data)
-            data = relu(data)
-            return data
-
-        x = convBlock(conv=self.conv1, data=x)
-        x = convBlock(conv=self.conv2, data=x)
-        x = denseBlock(dense=self.dense1, data=x)
-        x = denseBlock(dense=self.dense2, data=x)
-        x = self.dense3(inputs=x)
-
-        return x
-
-
-class LeNet_PyTorch(nn.Module):
+class LeNet(nn.Module):
     def __init__(
         self,
         tensorboardPath: Path,
@@ -108,7 +54,7 @@ class LeNet_PyTorch(nn.Module):
         validationDataLoader: DataLoader,
         outputPath: Path,
     ) -> None:
-        super(LeNet_PyTorch, self).__init__()
+        super(LeNet, self).__init__()
 
         self.common: Common = Common()
 
@@ -175,14 +121,14 @@ class LeNet_PyTorch(nn.Module):
         x = denseBlock(dense=self.dense2, data=x)
         return self.dense3(x)
 
-    def train(
+    def run(
         self,
         epochs: int = 10,
         saveBestTrainingLoss: bool = True,
         saveBestTrainingAccuracy: bool = True,
     ) -> None:
         previousBestTrainingAccuracy: float = 0.0
-        previousBestTrainingLoss: Number = -1
+        previousBestTrainingLoss: Number = 1
         trainingLoss: Number = -1
 
         optimizer: Adam = Adam(params=self.parameters(), lr=1e-3)
@@ -232,25 +178,33 @@ class LeNet_PyTorch(nn.Module):
 
                 if saveBestTrainingAccuracy:
                     if trainingAccuracy > previousBestTrainingAccuracy:
+                        self.eval()
+
                         previousBestTrainingAccuracy = trainingAccuracy
                         torch.save(
-                            obj=self.state_dict,
+                            obj=self.state_dict(),
                             f=Path(
                                 self.outputPath,
-                                f"lenet_pytorch_bestAccuracy_epoch{epoch}.pth",
+                                f"lenet_bestAccuracy_epoch{epoch}.pth",
                             ),
                         )
 
+                        self.train()
+
                 if saveBestTrainingLoss:
-                    if trainingLoss > previousBestTrainingLoss:
+                    if trainingLoss < previousBestTrainingLoss:
+                        self.eval()
+
                         previousBestTrainingLoss = trainingLoss
                         torch.save(
-                            obj=self.state_dict,
+                            obj=self.state_dict(),
                             f=Path(
                                 self.outputPath,
-                                f"lenet_pytorch_bestLoss_epoch{epoch}.pth",
+                                f"lenet_bestLoss_epoch{epoch}.pth",
                             ),
                         )
+
+                        self.train()
 
                 self.writer.add_scalar(
                     tag="Accuracy/train",
@@ -299,7 +253,7 @@ def main() -> None:
     validationDataLoader = splitDataLoader[1]
     testingDataLoader = mnistTesting.dataloader
 
-    model: LeNet_PyTorch = LeNet_PyTorch(
+    model: LeNet = LeNet(
         tensorboardPath=args.tensorboard[0],
         trainingDataLoader=trainingDataLoader,
         testingDataLoader=testingDataLoader,
@@ -307,7 +261,7 @@ def main() -> None:
         outputPath=args.output[0],
     )
 
-    model.train()
+    model.run()
 
 
 if __name__ == "__main__":
