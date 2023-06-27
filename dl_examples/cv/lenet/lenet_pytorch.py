@@ -12,7 +12,7 @@ from pathlib import Path
 import torch
 from progress.bar import Bar
 from torch import Tensor, nn
-from torch.nn import Conv2d, CrossEntropyLoss, Linear, MaxPool2d
+from torch.nn import Conv2d, CrossEntropyLoss, Dropout, Linear, MaxPool2d
 from torch.nn import functional as F
 from torch.optim import Adam
 from torch.types import Number
@@ -74,6 +74,8 @@ class LeNet(nn.Module):
             out_features=self.common.dense3_features,
         )
 
+        self.dropout: Dropout = Dropout()
+
         self.lossFunction: CrossEntropyLoss = CrossEntropyLoss()
 
         self.trainingDataLoader: DataLoader = trainingDataLoader
@@ -82,7 +84,7 @@ class LeNet(nn.Module):
 
         self.outputPath: Path = outputPath
 
-    def forward(self, x: Tensor) -> None:
+    def forward(self, x: Tensor) -> Tensor:
         def convBlock(conv: Conv2d, maxPool: MaxPool2d, data: Tensor) -> Tensor:
             data = conv(data)
             data = F.relu(input=data)
@@ -91,6 +93,7 @@ class LeNet(nn.Module):
 
         def denseBlock(dense: Linear, data: Tensor) -> Tensor:
             data = dense(data)
+            data = self.dropout(data)
             data = F.relu(input=data)
             return data
 
@@ -124,23 +127,23 @@ class LeNet(nn.Module):
         optimizer: Adam = Adam(params=self.parameters(), lr=1e-3)
 
         def _trainingLoop(epoch: int) -> tuple[Number, float]:
-            totalSeen: int = 0
             totalCorrectlyPredicted: int = 0
             loss: Tensor = Tensor()
+
+            datasetSize: int = len(self.trainingDataLoader.dataset)
 
             for _, (x, y) in enumerate(self.trainingDataLoader):
                 correct: int
 
                 loss, correct = self.predict(x=x, y=y)
 
-                totalSeen += 1
                 totalCorrectlyPredicted += correct
 
                 optimizer.zero_grad()
                 loss.backward()
                 optimizer.step()
 
-            epochAccuracy: float = totalCorrectlyPredicted / totalSeen
+            epochAccuracy: float = totalCorrectlyPredicted / datasetSize
             lossValue: Number = loss.item()
 
             self.metrics.logLoss(loss=lossValue, epoch=epoch)
@@ -149,19 +152,19 @@ class LeNet(nn.Module):
             return (lossValue, epochAccuracy)
 
         def _validationLoop(epoch: int) -> None:
-            totalSeen: int = 0
             totalCorrectlyPredicted: int = 0
             loss: Tensor = Tensor()
+
+            datasetSize: int = len(self.validationDataLoader.dataset)
 
             for _, (x, y) in enumerate(self.validationDataLoader):
                 correct: int
 
                 loss, correct = self.predict(x=x, y=y)
 
-                totalSeen += 1
                 totalCorrectlyPredicted += correct
 
-            epochAccuracy: float = totalCorrectlyPredicted / totalSeen
+            epochAccuracy: float = totalCorrectlyPredicted / datasetSize
 
             self.metrics.logLoss(
                 loss=loss.item(),
