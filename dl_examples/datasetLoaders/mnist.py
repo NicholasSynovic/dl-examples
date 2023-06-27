@@ -4,7 +4,7 @@ from typing import List
 from torch import Generator
 from torch.utils.data import DataLoader, Subset, random_split
 from torchvision import datasets
-from torchvision.transforms import Compose, Lambda, Normalize, ToTensor
+from torchvision.transforms import Compose, Normalize, ToTensor
 
 
 class MNIST(datasets.MNIST):
