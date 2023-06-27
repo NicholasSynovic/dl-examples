@@ -15,14 +15,14 @@ import torch
 from flax import linen
 from flax.linen import Conv, Dense, max_pool, relu
 from jax import Array
-from jax import numpy as jnp
 from jax.random import KeyArray, PRNGKey
+from progress.bar import Bar
 from torch import Tensor, nn
 from torch.nn import Conv2d, CrossEntropyLoss, Linear, MaxPool2d, functional
 from torch.optim import Adam
 from torch.utils.data import DataLoader
+from torch.utils.tensorboard.writer import SummaryWriter
 from torchvision.datasets import MNIST
-from torchvision.transforms import Compose, Lambda, ToTensor
 
 from dl_examples.args.lenet_args import getArgs
 from dl_examples.datasetLoaders.mnist import MNIST
@@ -102,6 +102,7 @@ class LeNet_Jax(linen.Module):
 class LeNet_PyTorch(nn.Module):
     def __init__(
         self,
+        tensorboardPath: Path,
         trainingDataLoader: DataLoader,
         testingDataLoader: DataLoader,
         validationDataLoader: DataLoader,
@@ -145,9 +146,13 @@ class LeNet_PyTorch(nn.Module):
             out_features=self.common.dense3_features,
         )
 
+        self.lossFunction: CrossEntropyLoss = CrossEntropyLoss()
+
         self.trainingDataLoader: DataLoader = trainingDataLoader
         self.testingDataLoader: DataLoader = testingDataLoader
         self.validationDataLoader: DataLoader = validationDataLoader
+
+        self.writer: SummaryWriter = SummaryWriter(log_dir=tensorboardPath.__str__())
 
     def forward(self, x: Tensor) -> None:
         def convBlock(conv: Conv2d, maxPool: MaxPool2d, data: Tensor) -> Tensor:
@@ -168,21 +173,85 @@ class LeNet_PyTorch(nn.Module):
         x = denseBlock(dense=self.dense2, data=x)
         return self.dense3(x)
 
-    def train(self) -> None:
-        lossFunction: CrossEntropyLoss = CrossEntropyLoss()
+    def train(self, epochs: int = 10) -> None:
+        globalLoss: Tensor = Tensor()
         optimizer: Adam = Adam(params=self.parameters(), lr=1e-3)
 
-        for _, (x, y) in enumerate(self.trainingDataLoader):
-            yPrediction: Tensor = self(x)
-            loss: Tensor = lossFunction(yPrediction, y)
+        with Bar(
+            f"Training LeNet (PyTorch) for {epochs} epoch(s)... ", max=epochs
+        ) as bar:
+            epoch: int
+            for epoch in range(epochs):
+                trainingCorrect: int = 0
+                trainingAccuracy: float = 0.0
+                validationAccuracy: float = 0.0
+                validationLoss: Tensor = Tensor()
+                validationCorrect: int = 0
 
-            optimizer.zero_grad()
-            loss.backward()
-            optimizer.step()
+                for _, (x, y) in enumerate(self.trainingDataLoader):
+                    yPrediction: Tensor = self(x)
+
+                    globalLoss = self.lossFunction(yPrediction, y)
+                    trainingCorrect += (
+                        (yPrediction.argmax(1) == y).type(torch.float).sum().item()
+                    )
+
+                    optimizer.zero_grad()
+                    globalLoss.backward()
+                    optimizer.step()
+
+                for _, (x, y) in enumerate(self.validationDataLoader):
+                    with torch.no_grad():
+                        yPrediction: Tensor = self(x)
+
+                        validationLoss = self.lossFunction(yPrediction, y)
+                        validationCorrect += (
+                            (yPrediction.argmax(1) == y).type(torch.float).sum().item()
+                        )
+
+                trainingAccuracy = trainingCorrect / len(
+                    self.trainingDataLoader.dataset
+                )
+                validationAccuracy = validationCorrect / len(
+                    self.validationDataLoader.dataset
+                )
+
+                self.writer.add_scalar(
+                    tag="Accuracy/train",
+                    scalar_value=trainingAccuracy,
+                    global_step=epoch,
+                )
+                self.writer.add_scalar(
+                    tag="Loss/train",
+                    scalar_value=globalLoss.item(),
+                    global_step=epoch,
+                )
+                self.writer.add_scalar(
+                    tag="Accuracy/validation",
+                    scalar_value=validationAccuracy,
+                    global_step=epoch,
+                )
+                self.writer.add_scalar(
+                    tag="Loss/validation",
+                    scalar_value=validationLoss.item(),
+                    global_step=epoch,
+                )
+                self.writer.flush()
+
+                bar.next()
+
+    def _test(self) -> None:
+        with torch.no_grad():
+            for x, y in self.testingDataLoader:
+                yPrediction: Tensor = self(x)
 
 
 def main() -> None:
     args: Namespace = getArgs()
+
+    trainingDataLoader: DataLoader
+    validationDataLoader: DataLoader
+    testingDataLoader: DataLoader
 
     datasetDirectory: Path = args.dataset[0]
 
@@ -191,15 +260,22 @@ def main() -> None:
     )
     mnistTesting: MNIST = MNIST(directory=datasetDirectory, train=False)
 
-    mnistTraining_dataloader: DataLoader = mnistTraining.dataloader
-    mnistTesting_dataloader: DataLoader = mnistTesting.dataloader
+    splitDataLoader: tuple[
+        DataLoader, DataLoader
+    ] = mnistTraining.createTrainingValidationSplit()
 
-    mnistTraining.createTrainingValidationSplit()
+    trainingDataLoader = splitDataLoader[0]
+    validationDataLoader = splitDataLoader[1]
+    testingDataLoader = mnistTesting.dataloader
 
-    pytorchLeNet: LeNet_PyTorch = LeNet_PyTorch()
-    jaxLeNet: LeNet_Jax = LeNet_Jax()
+    model: LeNet_PyTorch = LeNet_PyTorch(
+        tensorboardPath=Path("./run"),
+        trainingDataLoader=trainingDataLoader,
+        testingDataLoader=testingDataLoader,
+        validationDataLoader=validationDataLoader,
+    )
 
-    trainPyTorch(model=pytorchLeNet, data=mnistTraining_dataloader)
+    model.train()
 
 
 if __name__ == "__main__":

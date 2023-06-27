@@ -1,6 +1,5 @@
-from collections import namedtuple
 from pathlib import Path
-from typing import List, NamedTuple, Type
+from typing import List
 
 from torch import Generator
 from torch.utils.data import DataLoader, Subset, random_split
@@ -38,17 +37,12 @@ class MNIST(datasets.MNIST):
 
     def createTrainingValidationSplit(
         self, validationSizeRatio: float = 0.1
-    ) -> NamedTuple:
+    ) -> tuple[DataLoader, DataLoader]:
         trainingSubset: Subset
         validationSubset: Subset
 
-        splits = namedtuple(
-            typename="Splits",
-            field_names=["training", "validation"],
-        )
-
         datasetSize: int = len(self.dataloader.dataset)
-        generator: Generator = Generator().manual_seed(seed=42)
+        generator: Generator = Generator().manual_seed(42)
 
         validationSize: int = int(datasetSize * validationSizeRatio)
         sizes: List[int] = [datasetSize - validationSize, validationSize]
@@ -71,7 +65,4 @@ class MNIST(datasets.MNIST):
             shuffle=self.shuffleDataBetweenEpochs,
         )
 
-        return splits(
-            training=trainingDataLoader,
-            validation=validationDataLoader,
-        )
+        return (trainingDataLoader, validationDataLoader)
