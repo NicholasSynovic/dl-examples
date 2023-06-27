@@ -1,6 +1,7 @@
 flax
 jax
 optax
+poetry
 progress
 tensorboard
 tensorflow
